@@ -16,9 +16,11 @@ local TERMINAL_APPS = {
 
 local function typeClipboard()
     local text = hs.pasteboard.getContents()
-    if text and #text > 0 then
-        hs.eventtap.keyStrokes(text)
-    end
+    if not text or #text == 0 then return end
+    -- Replace newlines with spaces to avoid triggering submit in Claude Code
+    -- and prevent keyStrokes from producing "aa" on newline chars
+    text = text:gsub("\r\n", " "):gsub("\n", " "):gsub("\r", " ")
+    hs.eventtap.keyStrokes(text)
 end
 
 -- Cmd+Shift+V: force type-paste in any app
