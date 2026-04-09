@@ -43,8 +43,24 @@ Paste this prompt into Claude Code:
 
 ```
 Install Hammerspoon via brew if not installed, grant it Accessibility permission,
-then append paste-fix.lua from https://github.com/cyrus-cai/claude-code-paste-enhancement
-to my ~/.hammerspoon/init.lua (don't overwrite existing config).
+then fetch paste-fix.lua from https://github.com/cyrus-cai/claude-code-paste-enhancement.
+
+Before writing the config, use the AskUserQuestion tool to ask the user for TWO settings:
+
+1. TICK_INTERVAL (default: 0.025)
+   Ask: "How many seconds between each line when type-pasting? (default: 0.025)
+   - This controls the delay between typing each line of pasted text.
+   - Lower = faster paste, but if lines get dropped or newlines disappear, increase it.
+   - Higher = slower but more reliable.
+   - Tested range: 0.025 (fast) ~ 0.1 (conservative). Start with 0.025 if unsure."
+
+2. MAX_LINES (default: 50)
+   Ask: "Max lines to type-paste? Above this, falls back to normal paste. (default: 50)
+   - Enter a number (e.g. 50), or 0 for unlimited (always type-paste, never fold).
+   - Large values may cause a noticeable delay while pasting."
+
+Replace __TICK_INTERVAL__ and __MAX_LINES__ in paste-fix.lua with the user's answers.
+Then append the result to ~/.hammerspoon/init.lua (don't overwrite existing config).
 Detect my terminal's bundle ID and add it to TERMINAL_APPS.
 Reload Hammerspoon config and confirm the reload was successful.
 ```
