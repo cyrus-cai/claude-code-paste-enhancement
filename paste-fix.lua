@@ -16,8 +16,9 @@ local TERMINAL_APPS = {
     -- Add your terminal's bundle ID here
 }
 
-local TICK_INTERVAL = __TICK_INTERVAL__  -- seconds between lines
-local MAX_LINES = __MAX_LINES__          -- above this = normal paste; 0 = unlimited
+local CHAR_DELAY  = __CHAR_DELAY__          -- seconds between each character (0.001~0.005)
+local LINE_DELAY  = CHAR_DELAY * 10         -- newline pause: auto-derived from CHAR_DELAY
+local MAX_LINES   = __MAX_LINES__           -- above this = normal paste; 0 = unlimited
 local typing = false
 local pasteTimer = nil
 
@@ -39,29 +40,67 @@ local function typeClipboard()
         return false
     end
 
+    -- Build a flat list of actions: each is either a character or a newline
+    local actions = {}
+    for i, line in ipairs(lines) do
+        if i > 1 then
+            table.insert(actions, { type = "newline" })
+        end
+        -- Break line into individual UTF-8 characters
+        local pos = 1
+        while pos <= #line do
+            local byte = string.byte(line, pos)
+            local charLen = 1
+            if byte >= 0xF0 then charLen = 4
+            elseif byte >= 0xE0 then charLen = 3
+            elseif byte >= 0xC0 then charLen = 2
+            end
+            local char = line:sub(pos, pos + charLen - 1)
+            table.insert(actions, { type = "char", value = char })
+            pos = pos + charLen
+        end
+    end
+
+    if #actions == 0 then return true end
+
     typing = true
     local idx = 0
+    local nextDelay = CHAR_DELAY
 
-    pasteTimer = hs.timer.doEvery(TICK_INTERVAL, function()
-        idx = idx + 1
-        if idx > #lines then
-            if pasteTimer then
-                pasteTimer:stop()
+    local function scheduleNext()
+        pasteTimer = hs.timer.doAfter(nextDelay, function()
+            idx = idx + 1
+            if idx > #actions then
                 pasteTimer = nil
+                typing = false
+                return
             end
-            typing = false
-            return
-        end
 
-        if idx > 1 then
-            hs.eventtap.keyStroke({"shift"}, "return")
-        end
+            local action = actions[idx]
+            if action.type == "newline" then
+                hs.eventtap.keyStroke({"shift"}, "return")
+                nextDelay = LINE_DELAY
+            else
+                hs.eventtap.keyStrokes(action.value)
+                nextDelay = CHAR_DELAY
+            end
 
-        local line = lines[idx]
-        if #line > 0 then
-            hs.eventtap.keyStrokes(line)
-        end
-    end)
+            scheduleNext()
+        end)
+    end
+
+    -- Fire the first action immediately
+    idx = 1
+    local action = actions[idx]
+    if action.type == "newline" then
+        hs.eventtap.keyStroke({"shift"}, "return")
+        nextDelay = LINE_DELAY
+    else
+        hs.eventtap.keyStrokes(action.value)
+        nextDelay = CHAR_DELAY
+    end
+    scheduleNext()
+
     return true
 end
 
