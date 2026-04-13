@@ -2,7 +2,7 @@
 -- Claude Code Paste Enhancement: Bypass terminal bracketed paste detection
 -- https://github.com/anthropics/claude-code/issues/23134
 --
--- In terminal apps: Cmd+V types clipboard char-by-char (preserving newlines)
+-- In terminal apps: Cmd+V types clipboard line-by-line (preserving newlines)
 -- Cmd+Shift+V: force type-paste in any app
 -- Large pastes (>MAX_LINES) fall through to normal paste (Claude Code folds)
 -- =============================================================
@@ -16,9 +16,8 @@ local TERMINAL_APPS = {
     -- Add your terminal's bundle ID here
 }
 
-local CHAR_DELAY  = __CHAR_DELAY__          -- seconds between each character
-local LINE_DELAY  = CHAR_DELAY * 10         -- newline pause: auto-derived from CHAR_DELAY
-local MAX_LINES   = __MAX_LINES__           -- above this = normal paste; 0 = unlimited
+local TICK_INTERVAL = __TICK_INTERVAL__  -- seconds between lines
+local MAX_LINES = __MAX_LINES__          -- above this = normal paste; 0 = unlimited
 local typing = false
 local pasteTimer = nil
 
@@ -40,52 +39,29 @@ local function typeClipboard()
         return false
     end
 
-    -- Flat action list: chars + newline markers
-    local actions = {}
-    for i, line in ipairs(lines) do
-        if i > 1 then
-            table.insert(actions, { type = "newline" })
-        end
-        local pos = 1
-        while pos <= #line do
-            local byte = string.byte(line, pos)
-            local charLen = 1
-            if byte >= 0xF0 then charLen = 4
-            elseif byte >= 0xE0 then charLen = 3
-            elseif byte >= 0xC0 then charLen = 2
-            end
-            table.insert(actions, { type = "char", value = line:sub(pos, pos + charLen - 1) })
-            pos = pos + charLen
-        end
-    end
-
-    if #actions == 0 then return true end
-
     typing = true
     local idx = 0
 
-    local function step()
+    pasteTimer = hs.timer.doEvery(TICK_INTERVAL, function()
         idx = idx + 1
-        if idx > #actions then
-            pasteTimer = nil
+        if idx > #lines then
+            if pasteTimer then
+                pasteTimer:stop()
+                pasteTimer = nil
+            end
             typing = false
             return
         end
 
-        local action = actions[idx]
-        local delay
-        if action.type == "newline" then
-            hs.eventtap.keyStroke({"shift"}, "return", 0)
-            delay = LINE_DELAY
-        else
-            hs.eventtap.keyStrokes(action.value)
-            delay = CHAR_DELAY
+        if idx > 1 then
+            hs.eventtap.keyStroke({"shift"}, "return")
         end
 
-        pasteTimer = hs.timer.doAfter(delay, step)
-    end
-
-    step()
+        local line = lines[idx]
+        if #line > 0 then
+            hs.eventtap.keyStrokes(line)
+        end
+    end)
     return true
 end
 
@@ -96,15 +72,15 @@ hs.hotkey.bind({"cmd", "shift"}, "V", typeClipboard)
 terminalPasteWatcher = hs.eventtap.new({hs.eventtap.event.types.keyDown}, function(event)
     local flags = event:getFlags()
     local keyCode = event:getKeyCode()
+    -- Cmd+V = keyCode 9, only cmd flag
     if keyCode == 9 and flags.cmd and not flags.shift and not flags.alt and not flags.ctrl then
         local app = hs.application.frontmostApplication()
         if app and TERMINAL_APPS[app:bundleID()] then
-            if typing then return false end
             local intercepted = typeClipboard()
             if intercepted == false then
-                return false
+                return false  -- large paste, let terminal handle it
             end
-            return true
+            return true  -- suppress original Cmd+V
         end
     end
     return false
