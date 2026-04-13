@@ -47,12 +47,12 @@ then fetch paste-fix.lua from https://github.com/cyrus-cai/claude-code-paste-enh
 
 Before writing the config, use the AskUserQuestion tool to ask the user for TWO settings:
 
-1. CHAR_DELAY (default: 0.002)
-   Ask: "Seconds between each character when type-pasting? (default: 0.002)
+1. CHAR_DELAY (default: 0.010)
+   Ask: "Seconds between each character when type-pasting? (default: 0.010)
    - Controls per-character typing speed. Lower = faster, higher = more reliable.
    - Newline delay is auto-derived as CHAR_DELAY × 10.
-   - If characters get dropped, increase to 0.003~0.005.
-   - Tested range: 0.001 (fast) ~ 0.005 (conservative)."
+   - If characters get dropped, increase to 0.015~0.020.
+   - Tested range: 0.005 (fast) ~ 0.020 (conservative)."
 
 2. MAX_LINES (default: 50)
    Ask: "Max lines to type-paste? Above this, falls back to normal paste. (default: 50)
